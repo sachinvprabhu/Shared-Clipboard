@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+    <meta charset="utf-8">
+    <title>Detect Revenue Leakage for Water</title>
+    <style>
+      html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      #map {
+        height: 100%;
+      }
+	  .legend{
+		position:fixed;
+		top:0;
+		right:0;
+	  }
+    </style>
+	
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.3.0/Chart.min.js"></script>
+	<script src="https://code.jquery.com/jquery-3.1.1.slim.min.js" integrity="sha256-/SIrNqv8h6QGKDuNoLGA4iret+kyesCkHGzVUUV0shc=" crossorigin="anonymous"></script>
+	<link rel="stylesheet" href="css/w3.css">
+	<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.5.6/angular.min.js"></script>
+  </head>
+  <body ng-app>
+    <div id="map"></div>
+	
+	<div style="display:none" id="alertInfoWindow">
+		<div class="w3-panel w3-red w3-card-8">
+			<h3>Probable failure date</h3>
+			<p>The Pipe here is expected to break soon.</p>
+			<p>The expected failure date is <span class="w3-large">28th October</span>.</p>
+		</div>
+		<div style="width:28rem;">
+			<b>Expected Storm in the region by 28Th Friday</b>
+			<img src="img/storm.jpg" style="width:100%"/>
+		</div>
+	</div>
+	<div style="display:none" id="infoWindowBlock">
+		<div class="popup-content">
+			<h3>Joint #PSE472</h3>
+			
+			<table class="w3-table">
+				<tr>
+					<td>Pressure</td>
+					<td>1.8KPa</td>
+					<td><canvas id="pressureChart"  style="width:20rem;height:15rem"></canvas></td>
+				</tr>
+				<tr>
+					<td>Vibration</td>
+					<td>1.24Hz</td>
+					<td><canvas id="vibrationChart"  style="width:20rem;height:15rem"></canvas></td>
+				</tr>
+			</table>
+		</div>
+	</div>
+	
+    <script>
+
+	
+		var pipelines = {
+			"ML1":[],
+			"ML2":[{"lat":28.812791739035298,"lng":-81.27479553222656},{"lat":28.812641329382238,"lng":-81.33573532104492},{"lat":28.771872311312478,"lng":-81.35564804077148},{"lat":28.693298161014418,"lng":-81.38654708862305},{"lat":28.62958270721631,"lng":-81.38551712036133},{"lat":28.607582097675095,"lng":-81.38534545898438},{"lat":28.606828570517546,"lng":-81.33813858032227},{"lat":28.608787729885155,"lng":-81.29144668579102}],
+			"RA1":[{"lat":28.616096578927625,"lng":-81.29822731018066},{"lat":28.609993348258577,"lng":-81.32328987121582},{"lat":28.621069319460744,"lng":-81.32698059082031},{"lat":28.577286048391816,"lng":-81.38345718383789},{"lat":28.568240759694916,"lng":-81.38603210449219},{"lat":28.559647015177944,"lng":-81.36783599853516},{"lat":28.62039123234585,"lng":-81.37470245361328},{"lat":28.594620677647583,"lng":-81.3589096069336}],//Residential Area
+			"SL1":[{"lat":28.60856167489972,"lng":-81.30852699279785},{"lat":28.624610369910606,"lng":-81.31616592407227},{"lat":28.62415832756724,"lng":-81.33513450622559}],
+			"SL2":[{"lat":28.60712998202913,"lng":-81.36594772338867},{"lat":28.586217507743804,"lng":-81.36556148529053},{"lat":28.579132699232943,"lng":-81.37328624725342},{"lat":28.56236090504373,"lng":-81.3728141784668}],
+			"SL3":[],
+			"OF1":[{"lat":28.59266125413463,"lng":-81.31324768066406}],
+			"RP1":[{"lat":28.58241136675828,"lng":-81.39633178710938},{"lat":28.62445968934576,"lng":-81.30878448486328},{"lat":28.628377313740746,"lng":-81.37744903564453}],
+			"SH1":[{"lat":28.594469954058713,"lng":-81.37779235839844},{"lat":28.61270593900667,"lng":-81.3068962097168},{"lat":28.56718542535852,"lng":-81.36663436889648}]
+		}
+	
+		var infoWindow;
+		var mapPins = new Array();
+      function initMap() {
+	  
+		var myStyle = [
+       {
+         featureType: "administrative",
+         elementType: "labels",
+         stylers: [
+           { visibility: "off" }
+         ]
+       },{
+         featureType: "poi",
+         elementType: "labels",
+         stylers: [
+           { visibility: "off" }
+         ]
+       },{
+         featureType: "water",
+         elementType: "labels",
+         stylers: [
+           { visibility: "off" }
+         ]
+       },{
+         featureType: "road",
+         elementType: "labels",
+         stylers: [
+           { visibility: "off" }
+         ]
+       }
+     ];
+	  
+	  
+        var map = new google.maps.Map(document.getElementById('map'), {
+          zoom: 13,
+          center: {"lat":28.59352050287458,"lng":-81.308053100586},
+		  mapTypeControlOptions: {
+			mapTypeIds: ['mystyle', google.maps.MapTypeId.ROADMAP, google.maps.MapTypeId.TERRAIN]
+		  },
+		  mapTypeId: 'mystyle'
+        });
+		map.mapTypes.set('mystyle', new google.maps.StyledMapType(myStyle, { name: 'My Style' }));
+
+
+		marker = new google.maps.Marker({
+          map: map,
+          draggable: true,
+          animation: google.maps.Animation.BOUNCE,
+          position: {"lat":28.606828570517546,"lng":-81.33813858032227}
+        });
+		google.maps.event.addListener(marker,'mouseover', (function(marker){
+			(new google.maps.InfoWindow({
+			  content: $("#alertInfoWindow").html(),
+			  position:marker.latLng
+			})).open(map);
+			
+		}));
+		
+
+		infoWindow 	= 	new google.maps.InfoWindow({
+						  content: 'loading...'
+						});
+						
+		/*google.maps.event.addListener(infoWindow,'closeclick',function(){
+			for(i in mapPins){
+				mapPins[i].setOptions({'opacity': 1});
+			}
+		});*/
+		
+        // Create an array of alphabetical characters used to label the markers.
+        /*
+		var labels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+		
+		map.addListener('click', function(e) {
+			locations.push(e.latLng);
+			var marker = new google.maps.Marker({
+			  position: e.latLng,
+			  map: map//,			  icon:"./img/office.png"
+			});
+        });
+		*/
+		
+		//Drawing lines for each set of pipelines.
+		for(var set in pipelines){
+			var path = pipelines[set];
+			
+			
+			var lineType=set.substring(0,2);
+			if(lineType=="ML")
+				(new google.maps.Polyline({
+				  path: path,
+				  geodesic: true,
+				  strokeColor: "#0018a0",
+				  strokeOpacity: 0.8,
+				  strokeWeight: 5
+				})).setMap(map);
+			if(lineType=="SL")
+				(new google.maps.Polyline({
+				  path: path,
+				  geodesic: true,
+				  strokeColor: "#067dfd",
+				  strokeOpacity: 0.8,
+				  strokeWeight: 3
+				})).setMap(map);
+			
+			for(var pin in path){
+				
+				var marker = new google.maps.Marker({
+				  position: new google.maps.LatLng(path[pin]),
+				  map: map,
+				  //label:set,
+				  icon:
+					(lineType=="ML"||lineType=="SL")?{
+						"url":"img/sensor.png",
+						anchor: new google.maps.Point(12,20)
+					  }:(lineType=="RA")?{
+						"url":"img/home.png"
+					  }:(lineType=="OF")?{
+						"url":"img/office.png"
+					  }:(lineType=="RP")?{
+						"url":"img/recycle.png"
+					  }:(lineType=="SH")?{
+						"url":"img/shop.png"
+					  }:false				  
+				});
+				
+				mapPins.push(marker);
+				
+				//marker.setOptions({'opacity': 0.8});
+				if(lineType=="ML"||lineType=="SL")
+				google.maps.event.addListener(marker,'mouseover', (function(marker){
+					return function() {
+						infoWindow.setTimeIndex = 
+						window.setTimeout(function(){
+							/*for(i in mapPins){
+								mapPins[i].setOptions({'opacity': 0.7});
+							}*/
+							infoWindow.setPosition(marker.getPosition());
+							infoWindow.setContent(document.getElementById('infoWindowBlock').innerHTML);
+							infoWindow.open(map);
+							var l = $('.popup-content').parent().parent().parent().parent();
+							
+							//l.addClass("w3-animate-top");
+							l.addClass(" w3-animate-opacity");
+							
+							/*google.maps.event.addListener(infoWindow, 'domready', function() {
+								
+							});*/
+							
+							
+							
+							var crt = new Chart(document.getElementById("pressureChart"), {
+								type: 'line',
+								data: {
+									labels: ["0:00", "1:00", "2:00", "3:00", "4:00", "5:00"],
+									datasets: [{
+										label: '# of Votes',
+										data: [12, 19, 3, 5, 2, 3],
+										backgroundColor: [
+											'rgba(255, 99, 132, 0.2)'
+										],
+										borderColor: [
+											'#0088FF'
+										],
+										borderWidth: 1
+									}]
+								},
+								options:{
+									title:{
+										display: true,
+										text:"Pressure"
+									},
+									legend: { display: false }
+								}
+							});
+							new Chart(document.getElementById("vibrationChart"), {
+								type: 'line',
+								options:{
+									title:{
+										display: true,
+										text:"Vibration"
+									},
+									legend: { display: false }
+								},
+								data: {
+									labels: new Array(95),
+									datasets: [{
+										label: '# of Votes',
+										tension:0,
+										pointRadius:0,
+										data: [47,-47,10,-10,41,-41,13,-13,5,-5,49,-49,32,-32,33,-33,48,-48,17,-17,24,-24,38,-38,39,-39,44,-44,21,-21,37,-37,28,-28,40,-40,7,-7,15,-15,23,-23,25,-25,43,-43,42,-42,11,-11,46,-46,45,-45,30,-30,12,-12,22,-22,8,-8,27,-27,9,-9,34,-34,31,-31,19,-19,6,-6,36,-36,14,-14,1,-1,35,-35,2,-2,3,-3,18,-18,26,-26,20,-20,29,-29,16,-16,50,-50,4,-4],
+										spanGaps:true,
+										backgroundColor: [
+											'rgba(255, 99, 132, 0.2)'
+										],
+										borderColor: [
+											'rgba(255,99,132,1)'
+										],
+										borderWidth: 1
+									}]
+								}
+							});
+						},1000);
+					};
+				})(marker));
+				google.maps.event.addListener(marker,'mouseout', (function(marker){
+					return function() {
+						window.clearTimeout(infoWindow.setTimeIndex)
+					};
+				})(marker));
+			}
+		}
+		
+      }
+      var locations = [
+      ]
+    </script>
+    <!--
+	<script src="https://developers.google.com/maps/documentation/javascript/examples/markerclusterer/markerclusterer.js">
+    </script>-->
+    <script async defer
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCkt70ZUyULHhHqFcgkpwDUOGH7RV5A6JA&callback=initMap">
+    </script>
+	<div class="legend">
+		<table class="w3-table w3-white w3-striped w3-small">
+			<tr>
+				<td><i style="background-color:#0018a0">&nbsp;</i></td>
+				<td>Main Water Line</td>
+			</tr>
+			<tr>
+				<td><i style="background-color:#3393f9">&nbsp;</i></td>
+				<td>Sub Water lines</td>
+			</tr>
+			<tr>
+				<td><img src="img/home.png" style="width:20px"/></td>
+				<td>Major Residencial Areas</td>
+			</tr>
+			<tr>
+				<td><img src="img/sensor.png" style="width:20px"/></td>
+				<td>Sesors installed</td>
+			</tr>
+			<tr>
+				<td><img src="img/recycle.png" style="width:20px"/></td>
+				<td>Recycle Plants</td>
+			</tr>
+			<tr>
+				<td><img src="img/office.png" style="width:20px"/></td>
+				<td>Office</td>
+			</tr>
+			<tr>
+				<td><img src="img/shop.png" style="width:20px"/></td>
+				<td>Hardware Shops</td>
+			</tr>
+			<tr>
+				<td colspan="2" class="w3-red">
+					One or more failures expected.
+					<br/>
+					The expected Water loss is approximated
+					<br/> to around
+					<br/><span class="w3-xlarge">$22.4M</span> USD
+					<p>
+						More details available on highlighted map areas
+					</p>
+				</td>
+			</tr>
+		</table>
+	</div>
+  </body>
+</html>
+
+
+
+
+
+
+
+
+
+<!--
+
+
+Drawing lines
+https://developers.google.com/maps/documentation/javascript/examples/polyline-simple
+
+Info windows
+https://developers.google.com/maps/documentation/javascript/examples/infowindow-simple
+
+infoWindow Material Card
+https://material.angularjs.org/latest/demo/card
+
+
+bouncing marker
+marker.setAnimation(google.maps.Animation.BOUNCE);
+
+
+-->
