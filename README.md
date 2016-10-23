@@ -1,2 +1,2 @@
-# Shared-Clipboard
-An application developing on Windows platform with PHP Desktop(MSIE) to share system clipboard across paired devices on network
+# Water Solution
+Application to detect leakages in Water pipes in large scale and prevent Huge los of cost
